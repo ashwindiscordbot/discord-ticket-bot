@@ -4,7 +4,7 @@ from discord.ext import commands
 import os
 
 # Read token from environment variable (Replit secret)
-TOKEN = os.environ['MTQ4MTY2MzU0NjI2ODg0ODI3OA.G2JC9z.m42nxRs_4mSTgmqHXPM37uW76Takaw8PGx-J3w']
+TOKEN = os.environ['TOKEN']
 
 # Enable all intents
 intents = discord.Intents.all()
