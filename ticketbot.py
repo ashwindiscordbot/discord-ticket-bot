@@ -1,86 +1,45 @@
+# ticketbot.py
 import discord
 from discord.ext import commands
+import os
 
-TOKEN = "MTQ4MTY2MzU0NjI2ODg0ODI3OA.G2JC9z.m42nxRs_4mSTgmqHXPM37uW76Takaw8PGx-J3w"
+# Read token from environment variable (Replit secret)
+TOKEN = os.environ['MTQ4MTY2MzU0NjI2ODg0ODI3OA.G2JC9z.m42nxRs_4mSTgmqHXPM37uW76Takaw8PGx-J3w']
 
-intents = discord.Intents.default()
-intents.message_content = True
-
+# Enable all intents
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# Store ticket channels in memory
+ticket_channels = {}
 
-async def create_transcript(channel):
-    messages = []
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user.name} ({bot.user.id})')
+    print('Bot is online and ready!')
 
-    async for msg in channel.history(limit=None, oldest_first=True):
-        messages.append(f"{msg.author}: {msg.content}")
-
-    transcript = "\n".join(messages)
-
-    with open("transcript.txt", "w", encoding="utf-8") as f:
-        f.write(transcript)
-
-    return "transcript.txt"
-
-
-class CloseButton(discord.ui.View):
-    @discord.ui.button(label="🔒 Close Ticket", style=discord.ButtonStyle.red)
-    async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        await interaction.response.send_message("Saving transcript...", ephemeral=True)
-
-        file = await create_transcript(interaction.channel)
-
-        await interaction.channel.send(
-            "Ticket Transcript:",
-            file=discord.File(file)
-        )
-
-        await interaction.channel.delete()
-
-
-class TicketButton(discord.ui.View):
-    @discord.ui.button(label="🎫 Open Ticket", style=discord.ButtonStyle.green)
-    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        guild = interaction.guild
-        user = interaction.user
-
-        category = discord.utils.get(guild.categories, name="TICKETS")
-
-        ticket_channel = await guild.create_text_channel(
-            name=f"ticket-{user.name}",
-            category=category
-        )
-
-        await ticket_channel.send(
-            f"{user.mention} Support will be with you shortly.",
-            view=CloseButton()
-        )
-
-        await interaction.response.send_message(
-            f"Your ticket: {ticket_channel.mention}",
-            ephemeral=True
-        )
-
-
+# Command to create a ticket
 @bot.command()
-async def setup(ctx):
-
+async def ticket(ctx, *, reason=None):
     guild = ctx.guild
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(read_messages=False),
+        ctx.author: discord.PermissionOverwrite(read_messages=True)
+    }
+    channel_name = f"ticket-{ctx.author.name}"
+    ticket_channel = await guild.create_text_channel(channel_name, overwrites=overwrites, reason=reason)
+    ticket_channels[ctx.author.id] = ticket_channel.id
+    await ticket_channel.send(f"{ctx.author.mention}, your ticket has been created! Reason: {reason if reason else 'No reason provided'}")
+    await ctx.send(f"{ctx.author.mention}, your ticket channel is {ticket_channel.mention}")
 
-    category = discord.utils.get(guild.categories, name="TICKETS")
-
-    if category is None:
-        category = await guild.create_category("TICKETS")
-
-    embed = discord.Embed(
-        title="Support Tickets",
-        description="Press the button below to open a support ticket.",
-        color=discord.Color.blue()
-    )
-
-    await ctx.send(embed=embed, view=TicketButton())
-
+# Command to close a ticket
+@bot.command()
+async def close(ctx):
+    if ctx.channel.id in ticket_channels.values():
+        await ctx.send("Closing this ticket in 5 seconds...")
+        await discord.utils.sleep_until(discord.utils.utcnow() + discord.timedelta(seconds=5))
+        await ctx.channel.delete()
+    else:
+        await ctx.send("This command can only be used inside a ticket channel.")
 
 bot.run(TOKEN)
